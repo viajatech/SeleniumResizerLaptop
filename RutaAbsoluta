@@ -1,0 +1,101 @@
+#by David Ruiz a.k.a @viajatech 
+#más tutoriales en; https://linktr.ee/viajatech
+
+import os
+from PIL import Image
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.firefox.options import Options
+import requests
+import time
+
+def save_dog_images(query="dogs", num_images=10, target_size=512):
+    # ... (resto del código de la función)
+
+    # Ruta del escritorio, carpeta de imágenes y opciones de Firefox
+    desktop_path = os.path.expanduser("~/Desktop")  # Ruta absoluta al escritorio
+    images_folder = os.path.join(desktop_path, "dog_images")
+    os.makedirs(images_folder, exist_ok=True)
+
+    print(os.path.abspath(images_folder))  # Imprimir la ruta dentro de la función
+
+    # ... (resto del código de la función)
+    """Descarga y redimensiona imágenes de perros de Google Images.
+
+    Parámetros:
+        query: Término de búsqueda (por defecto: "dogs").
+        num_images: Número máximo de imágenes a descargar (por defecto: 10).
+        target_size: Tamaño deseado de las imágenes en píxeles (por defecto: 512).
+    """
+
+    # Ruta del escritorio, carpeta de imágenes y opciones de Firefox
+    desktop_path = os.path.expanduser("~/Desktop")  # Ruta absoluta al escritorio
+    images_folder = os.path.join(desktop_path, "dog_images")
+    os.makedirs(images_folder, exist_ok=True)
+    options = Options()
+    options.headless = True
+
+    # Iniciar Firefox y buscar imágenes
+    driver = webdriver.Firefox(options=options)
+    driver.get("https://images.google.com/")
+    search_box = driver.find_element(By.NAME, "q")
+    search_box.send_keys(query)
+    search_box.send_keys(Keys.ENTER)
+
+    # Obtener URLs de imágenes con filtro de tamaño
+    image_urls = []
+    scroll_pause_time = 1
+    last_height = driver.execute_script("return document.body.scrollHeight")
+
+    while len(image_urls) < num_images:
+        # Desplazarse hacia abajo para cargar más imágenes
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(scroll_pause_time)
+
+        # Actualizar altura para comprobar el desplazamiento
+        new_height = driver.execute_script("return document.body.scrollHeight")
+
+        # Detener el desplazamiento si no se cargan más imágenes
+        if new_height == last_height:
+            break
+
+        last_height = new_height
+
+        # Extraer elementos de imagen
+        images = driver.find_elements(By.CSS_SELECTOR, "img.rg_i")
+
+        # Agregar URL de imágenes a la lista
+        for img in images:
+            src = img.get_attribute("src")
+            if src and src.startswith("http") and src not in image_urls:
+                image_urls.append(src)
+
+    # Descargar y redimensionar imágenes
+    for i, url in enumerate(image_urls[:num_images]):
+        try:
+            response = requests.get(url, stream=True, timeout=5)
+            response.raise_for_status()
+
+            # Definir 'file_path' en cada iteración
+            file_path = os.path.join(images_folder, f"dog_image_{i + 1}.jpg")
+
+            # Guardar la imagen
+            with open(file_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=1024):
+                    if chunk:
+                        f.write(chunk)
+
+            # Abrir y redimensionar la imagen
+            image = Image.open(file_path)
+            image = image.resize((target_size, target_size), Image.Resampling.LANCZOS)
+            image.save(file_path)
+
+        except Exception as e:
+            print(f"Error al descargar o redimensionar la imagen {i + 1}: {e}")
+
+    driver.quit()
+
+# Ejecutar la función
+save_dog_images()
+
